@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 
 type DbLike = {
@@ -13,6 +14,8 @@ export type VideoArtifactSpec = {
 };
 
 const VIDEO_OUTPUT_DIR = "video_output";
+/** Remotion default output directory */
+const REMOTION_OUTPUT_DIR = "out";
 const LEGACY_VIDEO_FILENAME = "final.mp4";
 
 function normalizeSegment(raw: unknown, fallback: string): string {
@@ -104,11 +107,43 @@ export function resolveVideoArtifactSpecForTask(
 export function resolveVideoArtifactRelativeCandidates(spec: VideoArtifactSpec): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const candidate of [spec.relativePath, spec.legacyRelativePath]) {
+  for (const candidate of [
+    spec.relativePath,
+    spec.legacyRelativePath,
+    // Remotion default output directory candidates
+    path.join(REMOTION_OUTPUT_DIR, spec.fileName),
+    path.join(REMOTION_OUTPUT_DIR, LEGACY_VIDEO_FILENAME),
+  ]) {
     const normalized = String(candidate || "").trim();
     if (!normalized || seen.has(normalized)) continue;
     seen.add(normalized);
     out.push(normalized);
   }
   return out;
+}
+
+/**
+ * Scan a directory for any .mp4 file (non-zero size) as a fallback
+ * when named candidates are not found. Checks both `video_output/` and `out/`.
+ */
+export function discoverVideoArtifact(rootDir: string): string | null {
+  for (const dir of [VIDEO_OUTPUT_DIR, REMOTION_OUTPUT_DIR]) {
+    const absDir = path.join(rootDir, dir);
+    let entries: string[];
+    try {
+      entries = fs.readdirSync(absDir);
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.endsWith(".mp4")) continue;
+      const full = path.join(absDir, entry);
+      try {
+        if (fs.statSync(full).size > 0) return full;
+      } catch {
+        // skip
+      }
+    }
+  }
+  return null;
 }

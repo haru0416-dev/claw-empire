@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  discoverVideoArtifact,
   resolveVideoArtifactRelativeCandidates,
   resolveVideoArtifactSpecForTask,
 } from "../packs/video-artifact.ts";
@@ -142,6 +143,14 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
           }
         }
 
+        // Fallback: discover any .mp4 in worktree's video_output/ or out/ dirs
+        if (!sourceVideo) {
+          sourceVideo = discoverVideoArtifact(wtInfo.worktreePath!);
+          if (sourceVideo) {
+            appendTaskLog(taskId, "system", `Video artifact discovered via directory scan in worktree: ${sourceVideo}`);
+          }
+        }
+
         if (sourceVideo) {
           try {
             const destVideo = path.join(outputRoot, videoArtifactSpec.relativePath);
@@ -177,6 +186,15 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
             const msg = err instanceof Error ? err.message : String(err);
             appendTaskLog(taskId, "system", `Video artifact verification failed: ${msg}`);
           }
+        }
+      }
+
+      // Final fallback: discover any .mp4 in project root's video_output/ or out/ dirs
+      if (!videoArtifactReady) {
+        const discovered = discoverVideoArtifact(outputRoot);
+        if (discovered) {
+          videoArtifactReady = true;
+          appendTaskLog(taskId, "system", `Video artifact discovered via directory scan at project root: ${discovered}`);
         }
       }
 

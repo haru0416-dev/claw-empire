@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  discoverVideoArtifact,
   resolveVideoArtifactRelativeCandidates,
   resolveVideoArtifactSpecForTask,
 } from "../packs/video-artifact.ts";
@@ -360,6 +361,27 @@ export function createReviewFinalizeTools(deps: CreateReviewFinalizeToolsDeps) {
           }
         } catch {
           // best effort
+        }
+      }
+
+      // Fallback: discover any .mp4 in video_output/ or out/ directories
+      if (!verifiedPath) {
+        const searchRoots = [wtInfo?.worktreePath, outputRoot].filter(Boolean) as string[];
+        for (const root of searchRoots) {
+          const discovered = discoverVideoArtifact(root);
+          if (discovered) {
+            try {
+              const stat = fs.statSync(discovered);
+              if (stat.size > 0) {
+                verifiedPath = discovered;
+                verifiedSize = stat.size;
+                appendTaskLog(taskId, "system", `Review gate: video artifact discovered via directory scan: ${discovered} (${stat.size} bytes)`);
+                break;
+              }
+            } catch {
+              // best effort
+            }
+          }
         }
       }
 

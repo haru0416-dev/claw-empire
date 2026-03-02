@@ -32,6 +32,8 @@ describe("video artifact naming", () => {
       expect(resolveVideoArtifactRelativeCandidates(spec)).toEqual([
         "video_output/VID_기획팀_final.mp4",
         "video_output/final.mp4",
+        "out/VID_기획팀_final.mp4",
+        "out/final.mp4",
       ]);
     } finally {
       db.close();
