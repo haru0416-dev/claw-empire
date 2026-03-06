@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Lang } from "../../../../types/lang.ts";
 import { getDepartmentPromptForPack } from "../../../workflow/packs/department-scope.ts";
 import { resolveWorkflowPackKeyForTask } from "../../../workflow/packs/task-pack-resolver.ts";
+import { buildAgentMemoryPromptBlock } from "../../../memory/agent-memory.ts";
 import { resolveConstrainedAgentScopeForTask } from "../../core/tasks/execution-run-auto-assign.ts";
 import type { AgentRow } from "./types.ts";
 
@@ -526,6 +527,7 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
           const deptPrompt = typeof deptPromptRaw === "string" ? deptPromptRaw.trim() : "";
           const deptPromptBlock = deptPrompt ? `[Department Shared Prompt]\n${deptPrompt}` : "";
           const crossConversationCtx = getRecentConversationContext(execAgent.id);
+          const agentMemoryBlock = buildAgentMemoryPromptBlock(db as any, execAgent.id, nowMs());
           const taskLang = resolveLang(crossTaskData.description ?? crossTaskData.title);
           const availableSkillsPromptBlock = buildAvailableSkillsPromptBlock(execProvider);
           const spawnPrompt = buildTaskExecutionPrompt(
@@ -537,6 +539,7 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
               `\n---`,
               `Agent: ${execAgent.name} (${roleLabel}, ${crossDeptName})`,
               execAgent.personality ? `Personality: ${execAgent.personality}` : "",
+              agentMemoryBlock,
               deptConstraint,
               deptPromptBlock,
               pickL(

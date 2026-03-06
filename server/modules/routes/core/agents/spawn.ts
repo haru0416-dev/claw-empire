@@ -4,6 +4,7 @@ import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import { buildWorkflowPackExecutionGuidance } from "../../../workflow/packs/execution-guidance.ts";
 import { resolveVideoArtifactSpecForTask } from "../../../workflow/packs/video-artifact.ts";
 import { ensureVideoPreprodRemotionBestPracticesSkill } from "../../../workflow/core/video-skill-bootstrap.ts";
+import { buildAgentMemoryPromptBlock } from "../../../memory/agent-memory.ts";
 
 export function registerAgentSpawnRoute(ctx: RuntimeContext): void {
   const {
@@ -185,6 +186,7 @@ export function registerAgentSpawnRoute(ctx: RuntimeContext): void {
       : "";
     const departmentPrompt = normalizeTextField(agent.department_prompt);
     const departmentPromptBlock = departmentPrompt ? `[Department Shared Prompt]\n${departmentPrompt}` : "";
+    const agentMemoryBlock = buildAgentMemoryPromptBlock(db as any, agent.id, nowMs());
     const videoArtifactSpec =
       task.workflow_pack_key === "video_preprod"
         ? resolveVideoArtifactSpecForTask(db as any, {
@@ -209,6 +211,7 @@ export function registerAgentSpawnRoute(ctx: RuntimeContext): void {
         `NOTE: You are working in an isolated Git worktree branch (climpire/${taskId.slice(0, 8)}). Commit your changes normally.`,
         `Agent: ${agent.name} (${roleLabel}, ${agent.department_name || "Unassigned"})`,
         agent.personality ? `Personality: ${agent.personality}` : "",
+        agentMemoryBlock,
         deptConstraint,
         departmentPromptBlock,
         pickL(

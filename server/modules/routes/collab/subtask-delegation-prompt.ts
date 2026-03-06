@@ -1,4 +1,5 @@
 import type { Lang } from "../../../types/lang.ts";
+import { buildAgentMemoryPromptBlock } from "../../memory/agent-memory.ts";
 import { getDepartmentPromptForPack } from "../../workflow/packs/department-scope.ts";
 import type { AgentRow } from "./direct-chat.ts";
 import type { L10n } from "./language-policy.ts";
@@ -181,6 +182,7 @@ export function createSubtaskDelegationPromptBuilder(deps: PromptDeps) {
     );
     const deptPrompt = typeof deptPromptRaw === "string" ? deptPromptRaw.trim() : "";
     const deptPromptBlock = deptPrompt ? `[Department Shared Prompt]\n${deptPrompt}` : "";
+    const agentMemoryBlock = buildAgentMemoryPromptBlock(db as any, execAgent.id);
     const videoRuntimeRuleBlock =
       parentDept?.workflow_pack_key === "video_preprod"
         ? pickL(
@@ -284,6 +286,7 @@ export function createSubtaskDelegationPromptBuilder(deps: PromptDeps) {
         `---`,
         `Agent: ${agentDisplayName} (${roleLabel}, ${targetDeptName})`,
         execAgent.personality ? `Personality: ${execAgent.personality}` : "",
+        agentMemoryBlock,
         deptConstraint,
         deptPromptBlock,
         videoRuntimeRuleBlock,

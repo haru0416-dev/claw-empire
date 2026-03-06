@@ -11,6 +11,7 @@ import {
   consumeInterruptPrompts,
   loadPendingInterruptPrompts,
 } from "../../../workflow/core/interrupt-injection-tools.ts";
+import { buildAgentMemoryPromptBlock } from "../../../memory/agent-memory.ts";
 
 export type TaskRunRouteDeps = Pick<
   RuntimeContext,
@@ -332,6 +333,7 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
       : "";
     const departmentPrompt = normalizeTextField(agent.department_prompt);
     const departmentPromptBlock = departmentPrompt ? `[Department Shared Prompt]\n${departmentPrompt}` : "";
+    const agentMemoryBlock = buildAgentMemoryPromptBlock(db as any, agent.id, nowMs());
     const conversationCtx = getRecentConversationContext(agentId);
     const continuationCtx = getTaskContinuationContext(id);
     const continuationInstruction = continuationCtx
@@ -473,6 +475,7 @@ Whenever you complete a subtask, report it in this format:
         `\n---`,
         `Agent: ${agent.name} (${roleLabel}, ${agent.department_name || "Unassigned"})`,
         agent.personality ? `Personality: ${agent.personality}` : "",
+        agentMemoryBlock,
         deptConstraint,
         departmentPromptBlock,
         `NOTE: You are working in an isolated Git worktree branch (climpire/${id.slice(0, 8)}). Commit your changes normally.`,

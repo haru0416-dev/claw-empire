@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { recordAgentTaskCompletionMemory } from "../../memory/agent-memory.ts";
 import {
   discoverVideoArtifact,
   resolveVideoArtifactRelativeCandidates,
@@ -291,6 +292,23 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
         db.prepare(
           "UPDATE agents SET stats_tasks_done = stats_tasks_done + 1, stats_xp = stats_xp + 10 WHERE id = ?",
         ).run(task.assigned_agent_id);
+        const memoryEntries = recordAgentTaskCompletionMemory(db as any, {
+          agentId: task.assigned_agent_id,
+          taskId,
+          taskTitle: task.title,
+          taskDescription: task.description,
+          taskResult: result,
+          workflowPackKey: task.workflow_pack_key,
+          departmentName: task.department_id,
+          now: t,
+        });
+        if (memoryEntries.length > 0) {
+          appendTaskLog(
+            taskId,
+            "system",
+            `Agent memory refreshed (${memoryEntries.map((entry) => entry.kind).join(", ")})`,
+          );
+        }
       }
 
       const agent = db.prepare("SELECT * FROM agents WHERE id = ?").get(task.assigned_agent_id) as

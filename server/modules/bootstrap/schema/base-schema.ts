@@ -151,6 +151,22 @@ CREATE TABLE IF NOT EXISTS task_logs (
   created_at INTEGER DEFAULT (unixepoch()*1000)
 );
 
+CREATE TABLE IF NOT EXISTS agent_memory_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK(kind IN ('state','procedure','knowledge','episode')),
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  source_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+  source_type TEXT NOT NULL DEFAULT 'system',
+  dedupe_key TEXT,
+  pinned INTEGER NOT NULL DEFAULT 0 CHECK(pinned IN (0,1)),
+  created_at INTEGER DEFAULT (unixepoch()*1000),
+  updated_at INTEGER DEFAULT (unixepoch()*1000),
+  last_used_at INTEGER,
+  UNIQUE(agent_id, dedupe_key)
+);
+
 CREATE TABLE IF NOT EXISTS task_interrupt_injections (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -349,6 +365,8 @@ CREATE INDEX IF NOT EXISTS idx_projects_recent ON projects(last_used_at DESC, up
 CREATE INDEX IF NOT EXISTS idx_task_creation_audits_task ON task_creation_audits(task_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_task_creation_audits_trigger ON task_creation_audits(trigger, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_task_logs_task ON task_logs(task_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_memory_agent_kind
+  ON agent_memory_entries(agent_id, kind, pinned, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_task_interrupt_injections_task
   ON task_interrupt_injections(task_id, session_id, consumed_at, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_type, receiver_id, created_at DESC);

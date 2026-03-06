@@ -23,6 +23,7 @@ export type AgentRole = "team_leader" | "senior" | "junior" | "intern";
 export type AgentStatus = "idle" | "working" | "break" | "offline";
 export type CliProvider = "claude" | "codex" | "gemini" | "opencode" | "copilot" | "antigravity" | "api";
 export type MeetingReviewDecision = "reviewing" | "approved" | "hold";
+export type AgentMemoryKind = "state" | "procedure" | "knowledge" | "episode";
 
 export interface Agent {
   id: string;
@@ -48,6 +49,21 @@ export interface Agent {
   stats_tasks_done: number;
   stats_xp: number;
   created_at: number;
+}
+
+export interface AgentMemoryEntry {
+  id: number;
+  agent_id: string;
+  kind: AgentMemoryKind;
+  title: string;
+  content: string;
+  source_task_id: string | null;
+  source_type: string;
+  dedupe_key?: string | null;
+  pinned: number;
+  created_at: number;
+  updated_at: number;
+  last_used_at: number | null;
 }
 
 export interface MeetingPresence {

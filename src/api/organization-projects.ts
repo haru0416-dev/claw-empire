@@ -2,6 +2,7 @@ import { bootstrapSession, del, patch, post, request } from "./core";
 
 import type {
   Agent,
+  AgentMemoryEntry,
   Department,
   MeetingPresence,
   Project,
@@ -104,6 +105,18 @@ export async function getAgents(options?: { includeSeed?: boolean }): Promise<Ag
 export async function getAgent(id: string): Promise<Agent> {
   const j = await request<{ agent: Agent }>(`/api/agents/${id}`);
   return j.agent;
+}
+
+export async function getAgentMemory(
+  id: string,
+  options?: { limit?: number; kind?: AgentMemoryEntry["kind"] },
+): Promise<AgentMemoryEntry[]> {
+  const params = new URLSearchParams();
+  if (options?.limit) params.set("limit", String(options.limit));
+  if (options?.kind) params.set("kind", options.kind);
+  const query = params.toString();
+  const j = await request<{ memory: AgentMemoryEntry[] }>(`/api/agents/${id}/memory${query ? `?${query}` : ""}`);
+  return j.memory ?? [];
 }
 
 export async function getMeetingPresence(): Promise<MeetingPresence[]> {

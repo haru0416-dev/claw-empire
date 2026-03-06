@@ -9,6 +9,7 @@ import {
   consumeInterruptPrompts,
   loadPendingInterruptPrompts,
 } from "../core/interrupt-injection-tools.ts";
+import { buildAgentMemoryPromptBlock } from "../../memory/agent-memory.ts";
 
 type CreateExecutionStartTaskToolsDeps = {
   nowMs: RuntimeContext["nowMs"];
@@ -181,6 +182,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
     const deptPromptRaw = deptId ? getDepartmentPromptForPack(db as any, taskData.workflow_pack_key, deptId) : null;
     const deptPrompt = typeof deptPromptRaw === "string" ? deptPromptRaw.trim() : "";
     const deptPromptBlock = deptPrompt ? `[Department Shared Prompt]\n${deptPrompt}` : "";
+    const agentMemoryBlock = buildAgentMemoryPromptBlock(db as any, execAgent.id, nowMs());
     const conversationCtx = getRecentConversationContext(execAgent.id);
     const continuationCtx = getTaskContinuationContext(taskId);
     const recentChanges = getRecentChanges(projPath, taskId);
@@ -234,6 +236,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
         `\n---`,
         `Agent: ${execAgent.name} (${roleLabel}, ${deptName})`,
         execAgent.personality ? `Personality: ${execAgent.personality}` : "",
+        agentMemoryBlock,
         deptConstraint,
         deptPromptBlock,
         `NOTE: You are working in an isolated Git worktree branch (climpire/${taskId.slice(0, 8)}). Commit your changes normally.`,

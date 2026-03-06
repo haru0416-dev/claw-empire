@@ -1,5 +1,5 @@
 import { localeName, type UiLanguage } from "../../i18n";
-import type { Agent, Department, SubAgent, SubTask, Task } from "../../types";
+import type { Agent, AgentMemoryEntry, Department, SubAgent, SubTask, Task } from "../../types";
 import { getSubAgentSpriteNum, SUBTASK_STATUS_ICON, taskStatusLabel, taskTypeLabel, type TFunction } from "./constants";
 
 interface AgentDetailTabContentProps {
@@ -7,6 +7,8 @@ interface AgentDetailTabContentProps {
   t: TFunction;
   language: UiLanguage;
   agent: Agent;
+  memoryEntries: AgentMemoryEntry[];
+  memoryLoading: boolean;
   departments: Department[];
   agentTasks: Task[];
   agentSubAgents: SubAgent[];
@@ -23,6 +25,8 @@ export default function AgentDetailTabContent({
   t,
   language,
   agent,
+  memoryEntries,
+  memoryLoading,
   departments,
   agentTasks,
   agentSubAgents,
@@ -34,6 +38,30 @@ export default function AgentDetailTabContent({
   onOpenTerminal,
 }: AgentDetailTabContentProps) {
   const xpLevel = Math.floor(agent.stats_xp / 100) + 1;
+  const memoryKindLabel = (kind: AgentMemoryEntry["kind"]): string => {
+    switch (kind) {
+      case "state":
+        return t({ ko: "상태", en: "State", ja: "状態", zh: "状态" });
+      case "procedure":
+        return t({ ko: "절차", en: "Procedure", ja: "手順", zh: "流程" });
+      case "knowledge":
+        return t({ ko: "지식", en: "Knowledge", ja: "知識", zh: "知识" });
+      default:
+        return t({ ko: "에피소드", en: "Episode", ja: "エピソード", zh: "经历" });
+    }
+  };
+  const memoryKindIcon = (kind: AgentMemoryEntry["kind"]): string => {
+    switch (kind) {
+      case "state":
+        return "🧭";
+      case "procedure":
+        return "🛠️";
+      case "knowledge":
+        return "📚";
+      default:
+        return "🕰️";
+    }
+  };
 
   if (tab === "info") {
     return (
@@ -66,6 +94,47 @@ export default function AgentDetailTabContent({
               {t({ ko: "알바생", en: "Sub-agents", ja: "サブエージェント", zh: "子代理" })}
             </div>
           </div>
+        </div>
+
+        <div className="bg-slate-700/30 rounded-lg p-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="text-xs text-slate-500">
+              {t({ ko: "기억 보관함", en: "Memory Bank", ja: "メモリ保管庫", zh: "记忆库" })}
+            </div>
+            <div className="text-[10px] text-slate-500">
+              {memoryEntries.length} {t({ ko: "기록", en: "notes", ja: "件", zh: "条" })}
+            </div>
+          </div>
+          {memoryLoading ? (
+            <div className="text-xs text-slate-400">
+              {t({ ko: "기억을 불러오는 중...", en: "Loading memories...", ja: "記憶を読み込み中...", zh: "正在加载记忆..." })}
+            </div>
+          ) : memoryEntries.length <= 0 ? (
+            <div className="text-xs text-slate-400 leading-relaxed">
+              {t({
+                ko: "아직 저장된 기억이 없습니다. 이 직원이 업무를 마칠수록 작업 습관과 최근 맥락이 쌓입니다.",
+                en: "No saved memory yet. As this agent finishes work, useful habits and recent context will accumulate here.",
+                ja: "まだ保存された記憶はありません。タスク完了を重ねると、作業習慣と最近の文脈がここに蓄積されます。",
+                zh: "还没有已保存的记忆。随着该员工完成任务，工作习惯与近期上下文会逐渐积累在这里。",
+              })}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {memoryEntries.map((entry) => (
+                <div key={entry.id} className="rounded-xl border border-slate-600/70 bg-slate-800/60 px-3 py-2.5">
+                  <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                    <span>{memoryKindIcon(entry.kind)}</span>
+                    <span className="rounded-full bg-slate-700/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+                      {memoryKindLabel(entry.kind)}
+                    </span>
+                    {entry.pinned === 1 && <span className="text-amber-300">PIN</span>}
+                  </div>
+                  <div className="mt-1 text-sm font-medium text-white">{entry.title}</div>
+                  <div className="mt-1 text-xs leading-relaxed text-slate-300">{entry.content}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 pt-2">

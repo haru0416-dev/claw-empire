@@ -82,6 +82,31 @@ export function applyTaskSchemaMigrations(db: DbLike): void {
     /* already exists */
   }
 
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS agent_memory_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK(kind IN ('state','procedure','knowledge','episode')),
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        source_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+        source_type TEXT NOT NULL DEFAULT 'system',
+        dedupe_key TEXT,
+        pinned INTEGER NOT NULL DEFAULT 0 CHECK(pinned IN (0,1)),
+        created_at INTEGER DEFAULT (unixepoch()*1000),
+        updated_at INTEGER DEFAULT (unixepoch()*1000),
+        last_used_at INTEGER,
+        UNIQUE(agent_id, dedupe_key)
+      )
+    `);
+    db.exec(
+      "CREATE INDEX IF NOT EXISTS idx_agent_memory_agent_kind ON agent_memory_entries(agent_id, kind, pinned, updated_at DESC)",
+    );
+  } catch {
+    /* already exists */
+  }
+
   // 프로젝트별 직원 직접선택 기능: assignment_mode + project_agents 테이블
   try {
     db.exec("ALTER TABLE projects ADD COLUMN assignment_mode TEXT NOT NULL DEFAULT 'auto'");

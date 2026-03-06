@@ -4,6 +4,7 @@ import * as api from "../api";
 import { localeName, useI18n } from "../i18n";
 import type {
   Agent,
+  AgentMemoryEntry,
   CliModelInfo,
   Department,
   ReasoningLevelOption,
@@ -72,6 +73,8 @@ export default function AgentDetail({
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [savingPlanningLead, setSavingPlanningLead] = useState(false);
   const [actsAsPlanningLead, setActsAsPlanningLead] = useState(Number(agent.acts_as_planning_leader ?? 0) === 1);
+  const [memoryEntries, setMemoryEntries] = useState<AgentMemoryEntry[]>([]);
+  const [memoryLoading, setMemoryLoading] = useState(false);
 
   const agentTasks = tasks.filter((task) => task.assigned_agent_id === agent.id);
   const subtasksByTask = useMemo(() => {
@@ -181,6 +184,29 @@ export default function AgentDetail({
       cancelled = true;
     };
   }, [editingCli, supportsCliModelOverride, cliModels]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMemoryLoading(true);
+    api
+      .getAgentMemory(agent.id, { limit: 8 })
+      .then((entries) => {
+        if (!cancelled) setMemoryEntries(entries);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setMemoryEntries([]);
+        }
+        console.error("Failed to load agent memory:", err);
+      })
+      .finally(() => {
+        if (!cancelled) setMemoryLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [agent.id]);
 
   useEffect(() => {
     if (!requiresOAuthAccount) {
@@ -745,6 +771,8 @@ export default function AgentDetail({
             t={t}
             language={language}
             agent={agent}
+            memoryEntries={memoryEntries}
+            memoryLoading={memoryLoading}
             departments={departments}
             agentTasks={agentTasks}
             agentSubAgents={agentSubAgents}
