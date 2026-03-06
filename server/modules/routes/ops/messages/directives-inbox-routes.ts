@@ -311,11 +311,12 @@ export function registerDirectiveAndInboxRoutes(
     // 2. Broadcast to all
     broadcast("announcement", msg);
 
-    // 3. Team leaders respond
-    scheduleAnnouncementReplies(content);
     const directivePolicy = analyzeDirectivePolicy(content);
     const explicitSkip = body.skipPlannedMeeting === true;
     const shouldDelegate = shouldExecuteDirectiveDelegation(directivePolicy, explicitSkip);
+    if (!shouldDelegate) {
+      scheduleAnnouncementReplies(content);
+    }
     const directiveSessionRoute = resolveSessionTargetRouteFromDb({
       db,
       source: explicitSource,
@@ -742,12 +743,13 @@ export function registerDirectiveAndInboxRoutes(
     // Broadcast
     broadcast("announcement", msg);
 
-    // Team leaders respond
-    scheduleAnnouncementReplies(content);
     const directivePolicy = isDirective ? analyzeDirectivePolicy(content) : null;
     const inboxExplicitSkip = body.skipPlannedMeeting === true;
     const shouldDelegateDirective =
       isDirective && directivePolicy ? shouldExecuteDirectiveDelegation(directivePolicy, inboxExplicitSkip) : false;
+    if (!isDirective || !shouldDelegateDirective) {
+      scheduleAnnouncementReplies(content);
+    }
     const directiveDelegationOptions: DelegationOptions = {
       skipPlannedMeeting: inboxExplicitSkip || !!directivePolicy?.skipPlannedMeeting,
       skipPlanSubtasks: inboxExplicitSkip || !!directivePolicy?.skipPlanSubtasks,

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { linkInstalledSkillDirsIntoWorktree } from "../../../skills/local-skill-sync.ts";
 
 export type WorktreeInfo = {
   worktreePath: string;
@@ -16,6 +17,13 @@ type CreateWorktreeLifecycleToolsDeps = {
 export function createWorktreeLifecycleTools(deps: CreateWorktreeLifecycleToolsDeps) {
   const { appendTaskLog, taskWorktrees } = deps;
 
+  function readBooleanEnv(name: string): boolean {
+    const raw = String(process.env[name] ?? "")
+      .trim()
+      .toLowerCase();
+    return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+  }
+
   function isGitRepo(dir: string): boolean {
     try {
       execFileSync("git", ["rev-parse", "--is-inside-work-tree"], { cwd: dir, stdio: "pipe", timeout: 5000 });
@@ -27,6 +35,14 @@ export function createWorktreeLifecycleTools(deps: CreateWorktreeLifecycleToolsD
 
   function ensureWorktreeBootstrapRepo(projectPath: string, taskId: string): boolean {
     if (isGitRepo(projectPath)) return true;
+    if (!readBooleanEnv("CLAW_EMPIRE_AUTO_INIT_GIT_REPO")) {
+      appendTaskLog(
+        taskId,
+        "system",
+        `Git bootstrap blocked: '${projectPath}' is not a git repository. Set CLAW_EMPIRE_AUTO_INIT_GIT_REPO=true to allow automatic initialization.`,
+      );
+      return false;
+    }
     const shortId = taskId.slice(0, 8);
     try {
       if (!fs.existsSync(projectPath) || !fs.statSync(projectPath).isDirectory()) {
@@ -204,17 +220,9 @@ export function createWorktreeLifecycleTools(deps: CreateWorktreeLifecycleToolsD
 
       if (!created) throw lastError instanceof Error ? lastError : new Error("worktree_add_failed");
 
-      // Propagate .claude/skills into the worktree so agents can resolve installed skills
+      // Propagate installed provider skill directories into the worktree.
       try {
-        const serverSkillsDir = path.join(process.cwd(), ".claude", "skills");
-        if (fs.existsSync(serverSkillsDir)) {
-          const wtClaudeDir = path.join(selectedWorktreePath, ".claude");
-          const wtSkillsLink = path.join(wtClaudeDir, "skills");
-          if (!fs.existsSync(wtSkillsLink)) {
-            fs.mkdirSync(wtClaudeDir, { recursive: true });
-            fs.symlinkSync(serverSkillsDir, wtSkillsLink, "junction");
-          }
-        }
+        linkInstalledSkillDirsIntoWorktree(process.cwd(), selectedWorktreePath);
       } catch {
         // best effort — skill propagation failure should not block execution
       }

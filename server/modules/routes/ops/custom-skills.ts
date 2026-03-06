@@ -2,6 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import {
+  ProviderSkillConflictError,
+  removeCustomSkillFromProviderDirs,
+  syncCustomSkillToProviderDirs,
+} from "../../skills/local-skill-sync.ts";
 
 const CUSTOM_SKILL_NAME_RE = /^[A-Za-z0-9_-]{1,80}$/;
 
@@ -37,6 +42,7 @@ export function registerCustomSkillRoutes(
 ): void {
   const { app, logsDir, db } = ctx;
   const { normalizeSkillLearnProviders } = deps;
+  const projectRoot = path.resolve(logsDir, "..");
 
   app.post("/api/skills/custom", async (req, res) => {
     try {
@@ -67,6 +73,25 @@ export function registerCustomSkillRoutes(
       const customSkillsDir = path.join(logsDir, "..", "custom-skills");
       const resolvedExisting = resolveCustomSkillDirectory(customSkillsDir, canonicalSkillName);
       const skillDir = resolvedExisting?.dirPath ?? path.join(customSkillsDir, canonicalSkillName);
+      const existingMetaPath = path.join(skillDir, "meta.json");
+      let previousProviders: string[] = [];
+      if (fs.existsSync(existingMetaPath)) {
+        try {
+          const existingMeta = JSON.parse(fs.readFileSync(existingMetaPath, "utf8")) as { providers?: unknown };
+          previousProviders = Array.isArray(existingMeta.providers)
+            ? existingMeta.providers.map((value) => String(value ?? ""))
+            : [];
+        } catch {
+          previousProviders = [];
+        }
+      }
+      syncCustomSkillToProviderDirs({
+        rootDir: projectRoot,
+        canonicalSkillName,
+        content,
+        providers,
+        previousProviders,
+      });
       fs.mkdirSync(skillDir, { recursive: true });
 
       const skillFilePath = path.join(skillDir, "skills.md");
@@ -120,6 +145,14 @@ export function registerCustomSkillRoutes(
         jobId,
       });
     } catch (err) {
+      if (err instanceof ProviderSkillConflictError) {
+        return res.status(409).json({
+          ok: false,
+          error: "provider_skill_conflict",
+          provider: err.provider,
+          detail: err.message,
+        });
+      }
       console.error("[skills/custom]", err);
       res.status(500).json({ ok: false, error: "Failed to save custom skill" });
     }
@@ -186,6 +219,21 @@ export function registerCustomSkillRoutes(
       if (!resolvedSkill) {
         return res.status(404).json({ error: "skill_not_found" });
       }
+      const metaPath = path.join(resolvedSkill.dirPath, "meta.json");
+      let providers: string[] = [];
+      if (fs.existsSync(metaPath)) {
+        try {
+          const meta = JSON.parse(fs.readFileSync(metaPath, "utf8")) as { providers?: unknown };
+          providers = Array.isArray(meta.providers) ? meta.providers.map((value) => String(value ?? "")) : [];
+        } catch {
+          providers = [];
+        }
+      }
+      removeCustomSkillFromProviderDirs({
+        rootDir: projectRoot,
+        canonicalSkillName: resolvedSkill.canonicalName,
+        providers,
+      });
       fs.rmSync(resolvedSkill.dirPath, { recursive: true, force: true });
 
       db.prepare(`DELETE FROM skill_learning_history WHERE lower(repo) = lower(?)`).run(

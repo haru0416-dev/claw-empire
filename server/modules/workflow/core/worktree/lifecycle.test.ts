@@ -28,6 +28,7 @@ function initRepo(basePrefix: string): string {
 const tempDirs: string[] = [];
 
 afterEach(() => {
+  delete process.env.CLAW_EMPIRE_AUTO_INIT_GIT_REPO;
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
     if (!dir) continue;
@@ -83,5 +84,39 @@ describe("worktree lifecycle branch collision handling", () => {
     tools.cleanupWorktree(repo, taskId);
     runGit(repo, ["worktree", "remove", occupiedPath, "--force"]);
     runGit(repo, ["branch", "-D", baseBranch]);
+  });
+
+  it("blocks automatic git initialization by default for non-repo project paths", () => {
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "climpire-nonrepo-"));
+    tempDirs.push(projectDir);
+    const taskId = "nogit-0000-0000-0000-000000000000";
+
+    const tools = createWorktreeLifecycleTools({
+      appendTaskLog: () => {},
+      taskWorktrees: new Map(),
+    });
+
+    expect(tools.createWorktree(projectDir, taskId, "Tester")).toBeNull();
+    expect(fs.existsSync(path.join(projectDir, ".git"))).toBe(false);
+  });
+
+  it("can opt into automatic git initialization for non-repo project paths", () => {
+    process.env.CLAW_EMPIRE_AUTO_INIT_GIT_REPO = "true";
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "climpire-autoinit-"));
+    tempDirs.push(projectDir);
+    fs.writeFileSync(path.join(projectDir, "README.md"), "hello\n", "utf8");
+    const taskId = "autogit-0000-0000-0000-000000000000";
+
+    const taskWorktrees = new Map();
+    const tools = createWorktreeLifecycleTools({
+      appendTaskLog: () => {},
+      taskWorktrees,
+    });
+
+    const worktreePath = tools.createWorktree(projectDir, taskId, "Tester");
+    expect(worktreePath).toBeTruthy();
+    expect(fs.existsSync(path.join(projectDir, ".git"))).toBe(true);
+
+    tools.cleanupWorktree(projectDir, taskId);
   });
 });
