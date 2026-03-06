@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { Agent, CompanyStats, Task } from "../types";
+import type { Agent, CompanyRecentActivity, CompanyStats, Task } from "../types";
 import { localeName, useI18n } from "../i18n";
 import {
   DashboardHeroHeader,
@@ -8,8 +8,13 @@ import {
   type HudStat,
   type RankedAgent,
 } from "./dashboard/HeroSections";
-import { DashboardDeptAndSquad, DashboardMissionLog, type DepartmentPerformance } from "./dashboard/OpsSections";
-import { DEPT_COLORS, useNow } from "./dashboard/model";
+import {
+  DashboardDeptAndSquad,
+  DashboardMissionLog,
+  type DepartmentPerformance,
+  type MissionLogEntry,
+} from "./dashboard/OpsSections";
+import { DEPT_COLORS, STATUS_LABELS, STATUS_LEFT_BORDER, taskStatusLabel, useNow } from "./dashboard/model";
 
 interface DashboardProps {
   stats: CompanyStats | null;
@@ -118,9 +123,199 @@ export default function Dashboard({ stats, agents, tasks, companyName, onPrimary
   }, [stats, agents, agentMap, language]);
 
   const maxXp = topAgents.length > 0 ? Math.max(...topAgents.map((agent) => agent.xp), 1) : 1;
-  const recentTasks = useMemo(() => [...tasks].sort((a, b) => b.updated_at - a.updated_at).slice(0, 6), [tasks]);
   const workingAgents = agents.filter((agent) => agent.status === "working");
   const idleAgentsList = agents.filter((agent) => agent.status === "idle");
+
+  const missionLogEntries = useMemo<MissionLogEntry[]>(() => {
+    const getActivityAgentLabel = (activity: CompanyRecentActivity, linkedAgent?: Agent): string => {
+      if (linkedAgent) return localeName(language, linkedAgent);
+      if (language === "ko") return activity.agent_name_ko || activity.agent_name || t({ ko: "팀원", en: "Teammate" });
+      if (language === "ja") return activity.agent_name_ja || activity.agent_name || t({ ko: "팀원", en: "Teammate" });
+      if (language === "zh") return activity.agent_name_zh || activity.agent_name || t({ ko: "팀원", en: "Teammate" });
+      return activity.agent_name || activity.agent_name_ko || t({ ko: "팀원", en: "Teammate" });
+    };
+
+    const isDisplayableActivity = (activity: CompanyRecentActivity): boolean => {
+      const kind = String(activity.kind ?? "").toLowerCase();
+      const message = String(activity.message ?? "");
+      if (kind === "memory" || kind === "failed" || kind === "error" || kind === "completed") return true;
+      return /Status\s*(?:→|->)\s*review/i.test(message);
+    };
+
+    const buildActivityEntry = (activity: CompanyRecentActivity): MissionLogEntry => {
+      const linkedAgent = activity.agent_id ? agentMap.get(activity.agent_id) : undefined;
+      const actorLabelBase = getActivityAgentLabel(activity, linkedAgent);
+      const taskTitle = String(activity.task_title ?? "").trim();
+      const message = String(activity.message ?? "").trim();
+      const kind = String(activity.kind ?? "").toLowerCase();
+      const isMemory = kind === "memory";
+      const isFailure = kind === "failed" || kind === "error" || /RUN failed/i.test(message);
+      const isReview = /Status\s*(?:→|->)\s*review/i.test(message);
+      const isComplete = kind === "completed" || /RUN completed/i.test(message);
+
+      const title = isMemory
+        ? t({
+            ko: "새 작업 습관이 남았습니다",
+            en: "New habit remembered",
+            ja: "新しい仕事の癖を覚えました",
+            zh: "记住了新的工作习惯",
+          })
+        : taskTitle ||
+          t({
+            ko: "최근 활동",
+            en: "Recent activity",
+            ja: "最近の活動",
+            zh: "最近活动",
+          });
+
+      const body = isMemory
+        ? t({
+            ko: "다음 실행에 쓸 메모를 정리해 두었습니다.",
+            en: "Packed away a few notes for the next run.",
+            ja: "次の実行に向けたメモを整えておきました。",
+            zh: "已经为下一次执行整理好了几条便签。",
+          })
+        : isFailure
+          ? t({
+              ko: "작업이 한번 걸렸고, 다시 손봐야 할 상태로 돌아갔습니다.",
+              en: "The task hit a snag and bounced back for another pass.",
+              ja: "作業が一度引っかかり、もう一度整える段階に戻りました。",
+              zh: "任务中途卡了一下，已回到需要再修一轮的状态。",
+            })
+          : isReview
+            ? t({
+                ko: "이제 팀 리드가 결과를 확인할 차례입니다.",
+                en: "The result is now waiting for team lead review.",
+                ja: "結果はいまチームリードの確認待ちです。",
+                zh: "结果现在正等待组长确认。",
+              })
+            : isComplete
+              ? t({
+                  ko: "실행은 깔끔하게 끝났고, 다음 단계로 넘어갈 준비가 됐습니다.",
+                  en: "The run wrapped cleanly and is ready for the next handoff.",
+                  ja: "実行はきれいに完了し、次の受け渡しに進める状態です。",
+                  zh: "本轮执行已顺利收口，可以进入下一步交接。",
+                })
+              : message;
+
+      const actorLabel = taskTitle ? `${actorLabelBase} · ${taskTitle}` : actorLabelBase;
+
+      if (isMemory) {
+        return {
+          id: `activity-${activity.id}`,
+          title,
+          body,
+          actorLabel,
+          timestamp: activity.created_at,
+          badgeLabel: t({ ko: "MEMORY", en: "MEMORY", ja: "MEMORY", zh: "MEMORY" }),
+          badgeClassName: "bg-fuchsia-500/12 text-fuchsia-200 border-fuchsia-400/30",
+          leftBorderClassName: "border-l-fuchsia-400",
+          dotClassName: "bg-fuchsia-300",
+          fallbackIcon: "🧠",
+          agent: linkedAgent,
+        };
+      }
+
+      if (isFailure) {
+        return {
+          id: `activity-${activity.id}`,
+          title,
+          body,
+          actorLabel,
+          timestamp: activity.created_at,
+          badgeLabel: t({ ko: "ALERT", en: "ALERT", ja: "ALERT", zh: "ALERT" }),
+          badgeClassName: "bg-rose-500/12 text-rose-200 border-rose-400/30",
+          leftBorderClassName: "border-l-rose-400",
+          dotClassName: "bg-rose-300",
+          fallbackIcon: "🚨",
+          agent: linkedAgent,
+        };
+      }
+
+      if (isReview) {
+        return {
+          id: `activity-${activity.id}`,
+          title,
+          body,
+          actorLabel,
+          timestamp: activity.created_at,
+          badgeLabel: t({ ko: "REVIEW", en: "REVIEW", ja: "REVIEW", zh: "REVIEW" }),
+          badgeClassName: "bg-amber-500/12 text-amber-200 border-amber-400/30",
+          leftBorderClassName: "border-l-amber-400",
+          dotClassName: "bg-amber-300",
+          fallbackIcon: "🪄",
+          agent: linkedAgent,
+        };
+      }
+
+      return {
+        id: `activity-${activity.id}`,
+        title,
+        body,
+        actorLabel,
+        timestamp: activity.created_at,
+        badgeLabel: t({ ko: "DONE", en: "DONE", ja: "DONE", zh: "DONE" }),
+        badgeClassName: "bg-emerald-500/12 text-emerald-200 border-emerald-400/30",
+        leftBorderClassName: "border-l-emerald-400",
+        dotClassName: "bg-emerald-300",
+        fallbackIcon: "✨",
+        agent: linkedAgent,
+      };
+    };
+
+    const recentActivity = (stats?.recent_activity ?? []).filter(isDisplayableActivity).slice(0, 8);
+    if (recentActivity.length > 0) {
+      return recentActivity.map(buildActivityEntry);
+    }
+
+    return [...tasks]
+      .sort((a, b) => b.updated_at - a.updated_at)
+      .slice(0, 6)
+      .map((task) => {
+        const assignedAgent = task.assigned_agent ?? (task.assigned_agent_id ? agentMap.get(task.assigned_agent_id) : undefined);
+        const badgeLabel = taskStatusLabel(task.status, t);
+        const statusInfo = STATUS_LABELS[task.status] ?? {
+          color: "bg-slate-600/20 text-slate-200 border-slate-500/30",
+          dot: "bg-slate-400",
+        };
+        const leftBorder = STATUS_LEFT_BORDER[task.status] ?? "border-l-slate-500";
+        return {
+          id: task.id,
+          title: task.title,
+          body:
+            task.status === "done"
+              ? t({
+                  ko: "하나의 업무가 매듭지어졌습니다.",
+                  en: "One mission wrapped up cleanly.",
+                  ja: "ひとつの仕事がきれいに締まりました。",
+                  zh: "又有一项任务顺利收口。",
+                })
+              : task.status === "review"
+                ? t({
+                    ko: "결과를 다듬고 확인하는 마지막 단계입니다.",
+                    en: "This one is in the final polish-and-check step.",
+                    ja: "仕上げと確認の最終段階にいます。",
+                    zh: "这项任务正处在最后的润色与检查阶段。",
+                  })
+                : t({
+                    ko: "조용히 다음 진행을 기다리고 있습니다.",
+                    en: "Quietly waiting for the next push forward.",
+                    ja: "静かに次の一押しを待っています。",
+                    zh: "正安静地等待下一步推进。",
+                  }),
+          actorLabel: assignedAgent
+            ? localeName(language, assignedAgent)
+            : t({ ko: "미배정", en: "Unassigned", ja: "未割り当て", zh: "未分配" }),
+          timestamp: task.updated_at,
+          badgeLabel,
+          badgeClassName: statusInfo.color,
+          leftBorderClassName: leftBorder,
+          dotClassName: statusInfo.dot,
+          fallbackIcon: "📄",
+          agent: assignedAgent,
+        };
+      });
+  }, [stats, tasks, agentMap, language, t]);
 
   const podiumOrder =
     topAgents.length >= 3
@@ -212,10 +407,8 @@ export default function Dashboard({ stats, agents, tasks, companyName, onPrimary
       />
 
       <DashboardMissionLog
-        recentTasks={recentTasks}
-        agentMap={agentMap}
+        entries={missionLogEntries}
         agents={agents}
-        language={language}
         localeTag={localeTag}
         idleAgents={idleAgents}
         numberFormatter={numberFormatter}

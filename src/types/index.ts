@@ -175,6 +175,22 @@ export interface TaskLog {
   created_at: number;
 }
 
+export interface CompanyRecentActivity {
+  id: number | string;
+  task_id: string | null;
+  kind: string;
+  message: string;
+  created_at: number;
+  task_title?: string | null;
+  task_status?: TaskStatus | null;
+  agent_id?: string | null;
+  agent_name?: string | null;
+  agent_name_ko?: string | null;
+  agent_name_ja?: string | null;
+  agent_name_zh?: string | null;
+  agent_avatar?: string | null;
+}
+
 export interface MeetingMinuteEntry {
   id: number;
   meeting_id: string;
@@ -264,7 +280,7 @@ export interface CompanyStats {
     total_tasks: number;
     done_tasks: number;
   }>;
-  recent_activity: Array<Record<string, unknown>>;
+  recent_activity: CompanyRecentActivity[];
 }
 
 // SubTask

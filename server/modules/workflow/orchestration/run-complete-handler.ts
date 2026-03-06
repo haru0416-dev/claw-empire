@@ -305,8 +305,8 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
         if (memoryEntries.length > 0) {
           appendTaskLog(
             taskId,
-            "system",
-            `Agent memory refreshed (${memoryEntries.map((entry) => entry.kind).join(", ")})`,
+            "memory",
+            `Saved a few notes for the next run (${memoryEntries.map((entry) => entry.kind).join(", ")})`,
           );
         }
       }

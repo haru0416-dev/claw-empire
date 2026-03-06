@@ -271,11 +271,25 @@ export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
     const recentActivity = db
       .prepare(
         `
-    SELECT tl.*, t.title AS task_title
+    SELECT
+      tl.id,
+      tl.task_id,
+      tl.kind,
+      tl.message,
+      tl.created_at,
+      t.title AS task_title,
+      t.status AS task_status,
+      t.assigned_agent_id AS agent_id,
+      a.name AS agent_name,
+      a.name_ko AS agent_name_ko,
+      a.name_ja AS agent_name_ja,
+      a.name_zh AS agent_name_zh,
+      a.avatar_emoji AS agent_avatar
     FROM task_logs tl
     LEFT JOIN tasks t ON tl.task_id = t.id
+    LEFT JOIN agents a ON t.assigned_agent_id = a.id
     ORDER BY tl.created_at DESC
-    LIMIT 20
+    LIMIT 40
   `,
       )
       .all();

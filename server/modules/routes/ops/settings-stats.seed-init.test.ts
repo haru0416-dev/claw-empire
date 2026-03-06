@@ -76,6 +76,7 @@ function setupDb(): DatabaseSync {
       status TEXT,
       department_id TEXT,
       title TEXT,
+      workflow_pack_key TEXT,
       updated_at INTEGER,
       assigned_agent_id TEXT
     );
@@ -83,6 +84,8 @@ function setupDb(): DatabaseSync {
     CREATE TABLE task_logs (
       id TEXT PRIMARY KEY,
       task_id TEXT,
+      kind TEXT,
+      message TEXT,
       created_at INTEGER
     );
   `);
@@ -419,6 +422,52 @@ describe("ops settings seed init guard", () => {
         }
       ).c;
       expect(seedAgentCount).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("/api/stats recent_activity 에 담당 에이전트 정보까지 포함한다", () => {
+    const db = setupDb();
+    try {
+      db.prepare(
+        "INSERT INTO agents (id, name, name_ko, avatar_emoji, status) VALUES (?, ?, ?, ?, ?)",
+      ).run("agent-1", "Haru", "하루", "🦊", "idle");
+      db.prepare(
+        "INSERT INTO tasks (id, status, department_id, title, updated_at, assigned_agent_id) VALUES (?, ?, ?, ?, ?, ?)",
+      ).run("task-1", "review", "planning", "Memory pass", 1234, "agent-1");
+      db.prepare("INSERT INTO task_logs (id, task_id, kind, message, created_at) VALUES (?, ?, ?, ?, ?)").run(
+        "log-1",
+        "task-1",
+        "memory",
+        "Saved a few notes for the next run (state, procedure, episode)",
+        9999,
+      );
+
+      const { getRoutes } = createHarness(db);
+      const getHandler = getRoutes.get("/api/stats");
+      expect(getHandler).toBeTypeOf("function");
+
+      const res = createFakeResponse();
+      getHandler?.({}, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.payload).toMatchObject({
+        stats: {
+          recent_activity: [
+            {
+              id: "log-1",
+              task_id: "task-1",
+              kind: "memory",
+              task_title: "Memory pass",
+              agent_id: "agent-1",
+              agent_name: "Haru",
+              agent_name_ko: "하루",
+              agent_avatar: "🦊",
+            },
+          ],
+        },
+      });
     } finally {
       db.close();
     }
